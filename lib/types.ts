@@ -27,6 +27,7 @@ export interface Itinerary {
   id: string;
   name: string;
   city: string;
+  cityCoords: Coords | null;
   createdAt: string; // ISO date string
   places: Place[];         // middle stops only (start/end anchors are separate)
   startPlace: Place | null;
@@ -97,4 +98,6 @@ export type AppAction =
   | { type: "SET_END_PLACE"; payload: Place | null }
   | { type: "UPDATE_ITINERARY"; payload: { id: string; name: string; places: Place[]; startPlace: Place | null; endPlace: Place | null } }
   | { type: "SET_CITY_DETAILS"; payload: { city: string; imageUrl: string | null; flag: string | null; country: string | null; coords: Coords | null } }
-  | { type: "SET_CITY_TAGS"; payload: string[] };
+  | { type: "SET_CITY_TAGS"; payload: string[] }
+  | { type: "REMOVE_FROM_QUEUE"; payload: string }
+  | { type: "UPDATE_QUEUE_OPEN_STATUS"; payload: Record<string, boolean> };

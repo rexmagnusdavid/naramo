@@ -34,6 +34,8 @@ interface TripMapProps {
   navigationStarted: boolean;
   lastPlace?: Place | null;
   userLocation?: Coords | null;
+  /** When true: show only the current place marker (no routes, no queue markers) */
+  compact?: boolean;
 }
 
 function getBoundsRegion(places: Place[]) {
@@ -54,7 +56,7 @@ function getBoundsRegion(places: Place[]) {
   };
 }
 
-export function TripMap({ places, height, navigationStarted, lastPlace, userLocation }: TripMapProps) {
+export function TripMap({ places, height, navigationStarted, lastPlace, userLocation, compact = false }: TripMapProps) {
   const mapRef = useRef<MapView>(null);
 
   // Active route: GPS position → places[0] (fetched when navigation starts or destination changes)
@@ -117,7 +119,7 @@ export function TripMap({ places, height, navigationStarted, lastPlace, userLoca
       toolbarEnabled={false}
     >
       {/* Active route: GPS → next stop (amber solid) */}
-      {navigationStarted && activeRoute.length > 0 && (
+      {!compact && navigationStarted && activeRoute.length > 0 && (
         <Polyline
           key="route-active"
           coordinates={activeRoute.map((c) => ({ latitude: c.lat, longitude: c.lng }))}
@@ -127,7 +129,7 @@ export function TripMap({ places, height, navigationStarted, lastPlace, userLoca
       )}
 
       {/* Overview routes: stop-to-stop (white dashed) */}
-      {otherRoutes.map((coords, i) => (
+      {!compact && otherRoutes.map((coords, i) => (
         <Polyline
           key={`route-${i}`}
           coordinates={coords.map((c) => ({ latitude: c.lat, longitude: c.lng }))}
@@ -138,7 +140,7 @@ export function TripMap({ places, height, navigationStarted, lastPlace, userLoca
       ))}
 
       {/* Visited place pin (lastPlace) — faded dot, no number */}
-      {lastPlace && (
+      {!compact && lastPlace && (
         <Marker
           key={`last-${lastPlace.id}`}
           coordinate={{ latitude: lastPlace.lat, longitude: lastPlace.lng }}
@@ -163,47 +165,57 @@ export function TripMap({ places, height, navigationStarted, lastPlace, userLoca
         </Marker>
       )}
 
-      {/* Place markers */}
-      {places.map((place, index) => {
-        const isCurrent = index === 0;
-        const size = isCurrent ? 32 : 22;
-        const bg = isCurrent ? "#f59e0b" : "#ffffff";
-        const border = isCurrent ? "#fbbf24" : "#e4e4e7";
-        const textColor = isCurrent ? "#09090b" : "#18181b";
-        return (
-          <Marker
-            key={`${place.id}-${index}`}
-            coordinate={{ latitude: place.lat, longitude: place.lng }}
-            title={place.name}
-            anchor={{ x: 0.5, y: 0.5 }}
-          >
-            <View
-              style={{
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: bg,
-                borderWidth: isCurrent ? 2 : 1.5,
-                borderColor: border,
-                alignItems: "center",
-                justifyContent: "center",
-                ...SHADOW.card,
-              }}
+      {/* Place markers — in compact mode only the current place (index 0) is shown */}
+      {Object.values(
+        places.reduce<Record<string, { place: Place; index: number }>>((acc, place, index) => {
+          const key = `${place.lat.toFixed(5)},${place.lng.toFixed(5)}`;
+          if (!acc[key] || index < acc[key].index) {
+            acc[key] = { place, index };
+          }
+          return acc;
+        }, {})
+      )
+        .filter(({ index }) => !compact || index === 0)
+        .map(({ place, index }) => {
+          const isCurrent = index === 0;
+          const size = isCurrent ? (compact ? 16 : 32) : 22;
+          const bg = isCurrent ? "#f59e0b" : "#ffffff";
+          const border = isCurrent ? "#fbbf24" : "#e4e4e7";
+          const textColor = isCurrent ? "#09090b" : "#18181b";
+          return (
+            <Marker
+              key={`marker-${index}`}
+              coordinate={{ latitude: place.lat, longitude: place.lng }}
+              title={place.name}
+              anchor={{ x: 0.5, y: 0.5 }}
             >
-              <Text
+              <View
                 style={{
-                  color: textColor,
-                  fontSize: isCurrent ? 13 : 11,
-                  fontWeight: "700",
-                  lineHeight: isCurrent ? 16 : 13,
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                  backgroundColor: bg,
+                  borderWidth: isCurrent ? (compact ? 1.5 : 2) : 1.5,
+                  borderColor: border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  ...SHADOW.card,
                 }}
               >
-                {index + 1}
-              </Text>
-            </View>
-          </Marker>
-        );
-      })}
+                <Text
+                  style={{
+                    color: textColor,
+                    fontSize: isCurrent ? (compact ? 8 : 13) : 11,
+                    fontWeight: "700",
+                    lineHeight: isCurrent ? (compact ? 10 : 16) : 13,
+                  }}
+                >
+                  {index + 1}
+                </Text>
+              </View>
+            </Marker>
+          );
+        })}
     </MapView>
   );
 }

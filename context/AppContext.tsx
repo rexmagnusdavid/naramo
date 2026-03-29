@@ -58,34 +58,22 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, aiQueries: action.payload };
 
     case "ADD_DISCOVERED": {
-      // All places the user intentionally chose — must never appear in the deck.
-      const manualPlaces: Place[] = [
-        ...state.selectedPlaces,
-        ...(state.startPlace ? [state.startPlace] : []),
-        ...(state.endPlace ? [state.endPlace] : []),
-      ];
-      const manualIds = new Set(manualPlaces.map((p) => p.id));
-
+      const manualIds = new Set(
+        [
+          ...state.selectedPlaces,
+          state.startPlace,
+          state.endPlace,
+        ]
+          .filter(Boolean)
+          .map((p) => (p as Place).id)
+      );
       const existingIds = new Set([
         ...state.seenPlaceIds,
         ...state.discoveredPlaces.map((p) => p.id),
       ]);
-
-      // Proximity check runs against both already-discovered places AND manual places.
-      const proximityBaseline = [...state.discoveredPlaces, ...manualPlaces];
-
-      const newPlaces = action.payload
-        .filter((p) => !existingIds.has(p.id) && !manualIds.has(p.id))
-        .filter(
-          (p) =>
-            !proximityBaseline.some(
-              (existing) =>
-                haversineDistance(
-                  { lat: p.lat, lng: p.lng },
-                  { lat: existing.lat, lng: existing.lng }
-                ) < 150
-            )
-        );
+      const newPlaces = action.payload.filter(
+        (p) => !existingIds.has(p.id) && !manualIds.has(p.id)
+      );
       return {
         ...state,
         discoveredPlaces: [...state.discoveredPlaces, ...newPlaces],
@@ -183,6 +171,17 @@ function reducer(state: AppState, action: AppAction): AppState {
     case "SKIP_AND_RESORT":
       return { ...state, queue: action.payload, navigationStarted: true, lastPlace: state.queue[0] ?? null };
 
+    case "REMOVE_FROM_QUEUE":
+      return { ...state, queue: state.queue.filter((p) => p.id !== action.payload) };
+
+    case "UPDATE_QUEUE_OPEN_STATUS":
+      return {
+        ...state,
+        queue: state.queue.map((p) =>
+          action.payload[p.id] !== undefined ? { ...p, isOpen: action.payload[p.id] } : p
+        ),
+      };
+
     case "SET_USER_LOCATION":
       return { ...state, userLocation: action.payload };
 
@@ -200,6 +199,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         id: Date.now().toString(),
         name: action.payload.name,
         city: state.city,
+        cityCoords: state.cityCoords,
         createdAt: new Date().toISOString(),
         places: [...state.selectedPlaces],
         startPlace: state.startPlace,
@@ -265,6 +265,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         city: itinerary.city,
+        cityCoords: itinerary.cityCoords ?? null,
         selectedPlaces: [...itinerary.places],
         startPlace: itinerary.startPlace ?? null,
         endPlace: itinerary.endPlace ?? null,
@@ -325,6 +326,7 @@ interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   clearSession: () => void;
+  clearAll: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -345,7 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             dispatch({ type: "SET_TAGS", payload: saved.selectedTags });
           if (saved.vibeText)
             dispatch({ type: "SET_VIBE_TEXT", payload: saved.vibeText });
-          if (saved.city)
+          if (saved.city) {
             dispatch({
               type: "SET_CITY_DETAILS",
               payload: {
@@ -356,6 +358,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 coords: saved.cityCoords ?? null,
               },
             });
+            // SET_CITY_DETAILS sets cityTagsLoading: true — restore saved tags
+            // immediately so the vibe screen doesn't spin forever on resume.
+            dispatch({ type: "SET_CITY_TAGS", payload: saved.cityTags ?? [] });
+          }
           if (saved.selectedPlaces.length)
             dispatch({ type: "REORDER_SELECTED", payload: saved.selectedPlaces });
           if (saved.startPlace)
@@ -409,10 +415,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "CLEAR_SESSION" });
   }, []);
 
+  const clearAll = useCallback(() => {
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    dispatch({ type: "RESTORE_ITINERARIES", payload: { savedItineraries: [], activeItineraryId: null } });
+    dispatch({ type: "CLEAR_SESSION" });
+  }, []);
+
   if (!hydrated) return null;
 
   return (
-    <AppContext.Provider value={{ state, dispatch, clearSession }}>
+    <AppContext.Provider value={{ state, dispatch, clearSession, clearAll }}>
       {children}
     </AppContext.Provider>
   );

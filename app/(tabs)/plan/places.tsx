@@ -120,7 +120,7 @@ export default function PlacesScreen() {
   const cityLabel = state.city + (state.cityFlag ? ` ${state.cityFlag}` : "");
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-950">
+    <SafeAreaView className="flex-1 bg-zinc-950" edges={["bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -275,13 +275,13 @@ export default function PlacesScreen() {
           <View className="flex-row gap-2.5">
             <Pressable
               onPress={() => router.push("/(tabs)/plan/vibe")}
-              className="flex-1 border border-zinc-700 rounded-2xl min-h-[48px] items-center justify-center"
+              className="flex-1 border border-zinc-700 rounded-2xl min-h-[52px] items-center justify-center"
             >
-              <Text className="text-zinc-300 font-semibold text-sm">Discover ✨</Text>
+              <Text className="text-zinc-300 font-semibold text-sm">Feed ✨</Text>
             </Pressable>
             <Pressable
               onPress={handleSave}
-              className="flex-1 bg-amber-400 rounded-2xl min-h-[48px] items-center justify-center"
+              className="flex-1 bg-amber-400 rounded-2xl min-h-[52px] items-center justify-center"
             >
               <Text className="text-zinc-950 font-bold text-sm">
                 {isEditing ? "Save Changes" : "Save Itinerary"}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, ReactNode } from "react";
-import { View, TextInput, ActivityIndicator } from "react-native";
+import { View, TextInput, ActivityIndicator, ScrollView } from "react-native";
 
 interface SearchInputProps<T> {
   placeholder: string;
@@ -16,6 +16,8 @@ interface SearchInputProps<T> {
   extraLoading?: boolean;
   /** Omit the default dropdown container — caller's renderSuggestion provides its own styling */
   bare?: boolean;
+  /** Expand the suggestions list to fill remaining vertical space instead of capping at maxHeight */
+  fillHeight?: boolean;
 }
 
 export function SearchInput<T>({
@@ -27,6 +29,7 @@ export function SearchInput<T>({
   minLength = 2,
   extraLoading = false,
   bare = false,
+  fillHeight = false,
 }: SearchInputProps<T>) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<T[]>([]);
@@ -58,7 +61,7 @@ export function SearchInput<T>({
   }
 
   return (
-    <View>
+    <View style={fillHeight ? { flex: 1 } : undefined}>
       <View className="relative">
         <TextInput
           className="bg-zinc-900 border border-zinc-700 rounded-xl px-4 text-zinc-100 text-sm"
@@ -79,17 +82,25 @@ export function SearchInput<T>({
 
       {suggestions.length > 0 && (
         bare ? (
-          <View className="mt-1">
+          <ScrollView
+            className="mt-3"
+            keyboardShouldPersistTaps="handled"
+            style={fillHeight ? { flex: 1 } : { maxHeight: 300 }}
+          >
             {suggestions.map((item, index) =>
               renderSuggestion(item, index, () => handleSelect(item))
             )}
-          </View>
+          </ScrollView>
         ) : (
-          <View className="mt-1 bg-zinc-800 rounded-xl border border-zinc-700 overflow-hidden">
+          <ScrollView
+            className="mt-1 bg-zinc-800 rounded-xl border border-zinc-700 overflow-hidden"
+            keyboardShouldPersistTaps="handled"
+            style={fillHeight ? { flex: 1 } : { maxHeight: 300 }}
+          >
             {suggestions.map((item, index) =>
               renderSuggestion(item, index, () => handleSelect(item))
             )}
-          </View>
+          </ScrollView>
         )
       )}
     </View>

@@ -42,7 +42,8 @@ function photoUrl(ref: string): string {
 
 async function searchQuery(
   query: string,
-  pageToken?: string
+  pageToken?: string,
+  coords?: { lat: number; lng: number }
 ): Promise<{ places: Place[]; nextPageToken?: string }> {
   const body: Record<string, unknown> = {
     textQuery: query,
@@ -50,6 +51,14 @@ async function searchQuery(
     languageCode: "en",
   };
   if (pageToken) body.pageToken = pageToken;
+  if (coords) {
+    body.locationBias = {
+      circle: {
+        center: { latitude: coords.lat, longitude: coords.lng },
+        radius: 20000,
+      },
+    };
+  }
 
   console.log("[searchQuery] sending to Google Maps:", query);
   try {
@@ -108,33 +117,27 @@ export async function searchPlaces(
   queries: string[],
   pageTokens: string[],
   city?: string,
-  manual?: boolean
+  manual?: boolean,
+  coords?: { lat: number; lng: number }
 ): Promise<{ places: Place[]; nextPageTokens: string[] }> {
   if (manual) {
-    const result = await searchQuery(queries[0]);
+    const result = await searchQuery(queries[0], undefined, coords);
     return { places: result.places, nextPageTokens: [] };
   }
 
-  const cityContext = city ? ` in ${city}` : "";
-  const popularQuery = city ? `popular attractions in ${city}` : null;
-  const allQueries = popularQuery ? [popularQuery, ...queries] : queries;
-  const allTokens = popularQuery ? ["", ...pageTokens] : pageTokens;
+  // Use coordinates for geographic pinning when available; fall back to city name in query text
+  const cityContext = (!coords && city) ? ` in ${city}` : "";
 
   const results = await Promise.all(
-    allQueries.map((q, i) =>
-      searchQuery(
-        i === 0 && popularQuery ? q : q + cityContext,
-        allTokens[i] || undefined
-      )
+    queries.map((q, i) =>
+      searchQuery(q + cityContext, pageTokens[i] || undefined, coords)
     )
   );
 
-  const places = deduplicateByProximity(results.flatMap((r) => r.places));
-  const nextPageTokens = popularQuery
-    ? results.slice(1).map((r) => r.nextPageToken ?? "")
-    : results.map((r) => r.nextPageToken ?? "");
-
-  return { places, nextPageTokens };
+  return {
+    places: results.flatMap((r) => r.places),
+    nextPageTokens: results.map((r) => r.nextPageToken ?? ""),
+  };
 }
 
 export async function generateCityTags(city: string, country: string | null): Promise<string[]> {
@@ -163,21 +166,33 @@ export async function aiTranslate(
   tags: string[],
   vibeText: string,
   weather: string,
-  city?: string
+  city?: string,
+  previousQueries?: string[]
 ): Promise<string[]> {
   try {
-    const cityContext = city ? ` in ${city}` : "";
     const tagContext = tags.length > 0 ? `\nUser interests: ${tags.join(", ")}.` : "";
-    const prompt = `You are a Google Maps search assistant${cityContext}. Current weather: ${weather}.
-The user is looking for: "${vibeText}"${tagContext}
-Generate exactly 3 short, practical Google Maps search queries (2-5 words each) that would find what the user wants. Focus on the user's specific request. Keep queries simple and searchable.
-Return one single JSON array containing all 3 strings. No explanation. Respond in English only.`;
+    const avoidContext = previousQueries?.length
+      ? `\nDo NOT repeat or rephrase any of these already-used queries: ${previousQueries.join(", ")}. Find completely different place types.`
+      : "";
+    const userPrompt = `Current weather: ${weather}.
+The user is looking for: "${vibeText}"${tagContext}${avoidContext}
+Return a JSON array of exactly 3 search queries.`;
 
-    console.log("[aiTranslate] prompt:", prompt);
+    const systemPrompt = `You translate travel vibes into generic Google Maps search queries.
+RULES — violating any rule is wrong:
+1. Each query must be a CATEGORY or TYPE of place (e.g. "historic monuments", "observation decks", "scenic viewpoints"). NEVER name a specific place (e.g. NOT "central park", NOT "eiffel tower", NOT "statue of liberty").
+2. Do NOT include any city or country name in any query.
+3. Each query must be 2–5 words.
+4. Return ONLY a JSON array of 3 strings. No explanation, no markdown.`;
+
+    console.log("[aiTranslate] prompt:", userPrompt);
     const completion = await openai.chat.completions.create({
       model: "Qwen/Qwen2.5-7B-Instruct",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
       max_tokens: 200,
     });
 
@@ -426,6 +441,67 @@ export async function getPlaceById(placeId: string): Promise<Place | null> {
   }
 }
 
+
+/**
+ * Uses Qwen to identify which places would be significantly worse in the given weather.
+ * Returns an array of place IDs deemed weather-sensitive.
+ */
+export async function checkWeatherSensitivity(
+  places: Place[],
+  weatherDescription: string
+): Promise<string[]> {
+  if (!places.length) return [];
+  try {
+    const list = places.map((p) => `${p.id}: ${p.name}`).join("\n");
+    const prompt = `Weather is currently: ${weatherDescription}. Review these places and return ONLY the IDs of places that would be significantly worse in this weather (outdoor spaces, parks, beaches, open-air markets, rooftop venues, etc). Return a single JSON array of ID strings. No explanation.\nPlaces:\n${list}`;
+    const completion = await openai.chat.completions.create({
+      model: "Qwen/Qwen2.5-7B-Instruct",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+      max_tokens: 200,
+    });
+    const content = completion.choices[0]?.message?.content ?? "[]";
+    const stripped = content.replace(/```[a-z]*\n?/g, "").trim();
+    const matches = stripped.match(/\[[^\[\]]*\]/g) ?? [];
+    const ids: string[] = matches.flatMap((m) => {
+      try { return JSON.parse(m) as string[]; } catch { return []; }
+    });
+    // Only return IDs that actually exist in the places list
+    const validIds = new Set(places.map((p) => p.id));
+    return ids.filter((id) => validIds.has(id));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Checks current open/closed status for each place via the Places API.
+ * Returns a map of placeId → isOpen. Falls back to true on error.
+ */
+export async function checkPlacesOpenNow(
+  places: Place[]
+): Promise<Record<string, boolean>> {
+  if (!places.length) return {};
+  const results = await Promise.all(
+    places.map(async (p) => {
+      try {
+        const res = await fetch(`https://places.googleapis.com/v1/places/${p.id}`, {
+          headers: {
+            "X-Goog-Api-Key": GMAPS,
+            "X-Goog-FieldMask": "currentOpeningHours",
+          },
+        });
+        if (!res.ok) return { id: p.id, isOpen: true };
+        const data = await res.json();
+        const openNow: boolean = data.currentOpeningHours?.openNow ?? true;
+        return { id: p.id, isOpen: openNow };
+      } catch {
+        return { id: p.id, isOpen: true };
+      }
+    })
+  );
+  return Object.fromEntries(results.map(({ id, isOpen }) => [id, isOpen]));
+}
 
 export async function geocodeAddress(address: string): Promise<Coords> {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GMAPS}`;

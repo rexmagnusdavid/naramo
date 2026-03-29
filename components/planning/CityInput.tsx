@@ -90,6 +90,7 @@ export function CityInput() {
       extraLoading={loadingDetails}
       onSelect={handleSelect}
       bare
+      fillHeight
       renderSuggestion={(pred, _index, onPress) => (
         <PlaceSuggestionCard key={pred.placeId} pred={pred} onPress={onPress} />
       )}

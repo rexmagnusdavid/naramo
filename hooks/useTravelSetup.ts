@@ -19,10 +19,12 @@ export function useTravelSetup() {
       } catch { /* ok — optional */ }
     }
 
-    // Weather anchored to the city, not the user's current location
-    const weatherCoords = cityCoords ?? coords;
-    let weather: WeatherData | null = state.weather ?? null;
-    if (weatherCoords && !weather) {
+    // Weather must come from the city, never the user's current location.
+    // Always fetch fresh weather at trip start — do not reuse cached state.weather
+    // which may be from a different city.
+    const weatherCoords = cityCoords ?? null;
+    let weather: WeatherData | null = null;
+    if (weatherCoords) {
       try {
         weather = await getWeather(weatherCoords.lat, weatherCoords.lng);
       } catch { /* non-critical */ }

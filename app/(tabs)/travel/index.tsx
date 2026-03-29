@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { toast } from "sonner-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { Itinerary } from "@/lib/types";
 import { optimizeRoute } from "@/lib/routing";
@@ -23,7 +24,7 @@ export default function SelectItineraryScreen() {
   async function handleStart(itinerary: Itinerary) {
     setLoadingId(itinerary.id);
     try {
-      const cityCoords = state.cityCoords;
+      const cityCoords = itinerary.cityCoords ?? state.cityCoords;
       const { coords, weather } = await setup(cityCoords);
 
       const origin = itinerary.startPlace
@@ -65,7 +66,7 @@ export default function SelectItineraryScreen() {
   const { savedItineraries } = state;
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-950">
+    <SafeAreaView className="flex-1 bg-zinc-950" edges={["bottom"]}>
       <View className="px-4 py-3">
         <Text className="text-zinc-100 font-bold text-xl">Saved Itineraries</Text>
         <Text className="text-zinc-500 text-sm mt-0.5">
@@ -85,7 +86,7 @@ export default function SelectItineraryScreen() {
             onPress={() => router.navigate("/(tabs)/plan")}
             className="bg-amber-400 rounded-2xl min-h-[52px] px-8 items-center justify-center"
           >
-            <Text className="text-zinc-900 font-bold">Go to Plan →</Text>
+            <Text className="text-zinc-900 font-bold">Go to Plan</Text>
           </Pressable>
         </View>
       ) : (
@@ -105,50 +106,41 @@ export default function SelectItineraryScreen() {
                 key={itinerary.id}
                 className="bg-zinc-900 rounded-2xl p-4 gap-3"
               >
-                <View className="flex-row items-start justify-between gap-2">
-                  <View className="flex-1 gap-1">
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-zinc-100 font-bold text-base flex-1" numberOfLines={1}>
-                        {itinerary.name}
-                      </Text>
-                      {itinerary.isDone && (
-                        <View className="bg-emerald-900 rounded-full px-2 py-0.5">
-                          <Text className="text-emerald-400 text-xs font-semibold">Done</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text className="text-zinc-500 text-xs">
-                      {itinerary.city} · {(itinerary.startPlace ? 1 : 0) + itinerary.places.length + (itinerary.endPlace ? 1 : 0)} stop{((itinerary.startPlace ? 1 : 0) + itinerary.places.length + (itinerary.endPlace ? 1 : 0)) !== 1 ? "s" : ""} · {date}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center gap-1">
-                    <Pressable
-                      onPress={() => handleEdit(itinerary.id)}
-                      className="min-h-[36px] min-w-[36px] items-center justify-center"
-                    >
-                      <Text className="text-zinc-400 text-lg">✎</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleDelete(itinerary.id)}
-                      className="min-h-[36px] min-w-[36px] items-center justify-center"
-                    >
-                      <Text className="text-zinc-600 text-lg">🗑</Text>
-                    </Pressable>
-                  </View>
+                {/* Name + subtitle */}
+                <View className="gap-1">
+                  <Text className="text-zinc-100 font-bold text-base" numberOfLines={1}>
+                    {itinerary.name}
+                  </Text>
+                  <Text className="text-zinc-500 text-xs">
+                    {itinerary.city} · {(itinerary.startPlace ? 1 : 0) + itinerary.places.length + (itinerary.endPlace ? 1 : 0)} stop{((itinerary.startPlace ? 1 : 0) + itinerary.places.length + (itinerary.endPlace ? 1 : 0)) !== 1 ? "s" : ""} · {date}
+                  </Text>
                 </View>
 
-                <Pressable
-                  onPress={() => handleStart(itinerary)}
-                  disabled={isLoading}
-                  className={`bg-amber-400 rounded-xl min-h-[44px] items-center justify-center flex-row gap-2 ${
-                    isLoading ? "opacity-70" : ""
-                  }`}
-                >
-                  {isLoading && <ActivityIndicator size="small" color="#09090b" />}
-                  <Text className="text-zinc-900 font-bold">
-                    {isLoading ? "Starting..." : "Start →"}
-                  </Text>
-                </Pressable>
+                {/* Action row: edit + delete circles, start button */}
+                <View className="flex-row items-center gap-3">
+                  <Pressable
+                    onPress={() => handleEdit(itinerary.id)}
+                    className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 items-center justify-center"
+                  >
+                    <Ionicons name="pencil-outline" size={18} color="#a1a1aa" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleDelete(itinerary.id)}
+                    className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 items-center justify-center"
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#a1a1aa" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleStart(itinerary)}
+                    disabled={isLoading}
+                    className={`flex-1 h-11 bg-amber-400 rounded-2xl items-center justify-center flex-row gap-2 ${isLoading ? "opacity-70" : ""}`}
+                  >
+                    {isLoading && <ActivityIndicator size="small" color="#09090b" />}
+                    <Text className="text-zinc-900 font-bold">
+                      {isLoading ? "Starting..." : "Start"}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             );
           })}

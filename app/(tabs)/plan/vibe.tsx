@@ -26,7 +26,7 @@ export default function VibeScreen() {
   const [loadingVibe, setLoadingVibe] = useState(false);
 
   async function runDiscovery(queries: string[]) {
-    const { places, nextPageTokens } = await searchPlaces(queries, [], state.city);
+    const { places, nextPageTokens } = await searchPlaces(queries, [], state.city, false, state.cityCoords ?? undefined);
     const finalPlaces: Place[] = places.length > 0 ? places : FALLBACK_PLACES;
     dispatch({
       type: "RESET_DISCOVERY",
@@ -37,13 +37,8 @@ export default function VibeScreen() {
   async function handlePopular() {
     setLoadingPopular(true);
     try {
-      const { coords: userCoords, weather } = await setup(state.cityCoords);
-      // Pass empty queries — searchPlaces injects "popular attractions in {city}" automatically
-      await runDiscovery([]);
-      if (weather && userCoords) {
-        dispatch({ type: "START_TRAVEL", payload: { weather, userLocation: userCoords } });
-        dispatch({ type: "SET_PHASE", payload: "planning" });
-      }
+      await setup(state.cityCoords);
+      await runDiscovery(["popular attractions"]);
       router.push("/(tabs)/plan/swipe");
     } catch (err) {
       console.error("[VibeScreen] handlePopular failed:", err);
@@ -65,7 +60,7 @@ export default function VibeScreen() {
     }
     setLoadingVibe(true);
     try {
-      const { coords: userCoords, weather } = await setup(state.cityCoords);
+      const { weather } = await setup(state.cityCoords);
       const weatherStr = weather
         ? `${weather.description}, ${weather.temp}°C`
         : "clear skies";
@@ -75,10 +70,6 @@ export default function VibeScreen() {
         return;
       }
       await runDiscovery(queries);
-      if (weather && userCoords) {
-        dispatch({ type: "START_TRAVEL", payload: { weather, userLocation: userCoords } });
-        dispatch({ type: "SET_PHASE", payload: "planning" });
-      }
       router.push("/(tabs)/plan/swipe");
     } catch (err) {
       console.error("[VibeScreen] handleFindPlaces failed:", err);
@@ -96,12 +87,12 @@ export default function VibeScreen() {
   const anyLoading = loadingPopular || loadingVibe;
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-950">
+    <SafeAreaView className="flex-1 bg-zinc-950" edges={["bottom"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <ScreenHeader title="Discover Places" subtitle={state.city} />
+        <ScreenHeader title="Discover" subtitle={state.city} />
 
         <ScrollView
           className="flex-1"
@@ -121,7 +112,7 @@ export default function VibeScreen() {
               <ActivityIndicator size="small" color="#a1a1aa" />
             ) : null}
             <Text className="text-zinc-200 font-semibold text-base">
-              {loadingPopular ? "Loading..." : "Show me what's popular →"}
+              {loadingPopular ? "Loading..." : "Show me what's popular"}
             </Text>
           </Pressable>
 
@@ -145,7 +136,7 @@ export default function VibeScreen() {
           >
             {loadingVibe && <ActivityIndicator size="small" color="#09090b" />}
             <Text className="text-zinc-900 font-bold text-base">
-              {loadingVibe ? "Finding places..." : "Find Places →"}
+              {loadingVibe ? "Finding places..." : "Find Places"}
             </Text>
           </Pressable>
         </ScrollView>

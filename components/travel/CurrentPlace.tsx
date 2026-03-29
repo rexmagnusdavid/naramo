@@ -17,14 +17,13 @@ interface CurrentPlaceProps {
 
 export function CurrentPlace({ place }: CurrentPlaceProps) {
   const { width } = useWindowDimensions();
-  const photoHeight = width * 0.75; // 4:3 ratio
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`;
 
   return (
-    <View className="gap-4">
-      {/* Photo carousel */}
-      <View className="rounded-2xl overflow-hidden bg-zinc-800">
-        <PhotoCarousel photoUrls={place.photoUrls} height={photoHeight} width={width} />
+    <View style={{ flex: 1, gap: 8 }}>
+      {/* Photo carousel — flex:1 fills all space left over from the fixed elements below */}
+      <View className="rounded-2xl overflow-hidden bg-zinc-800" style={{ flex: 1 }}>
+        <PhotoCarousel photoUrls={place.photoUrls} width={width} />
 
         <GradientOverlay />
 
@@ -52,17 +51,17 @@ export function CurrentPlace({ place }: CurrentPlaceProps) {
         {place.website && (
           <Pressable
             onPress={() => Linking.openURL(place.website!)}
-            className="flex-row items-center gap-1"
+            className="border border-zinc-700 rounded-full px-3 py-1.5 flex-row items-center gap-1"
           >
-            <Ionicons name="globe-outline" size={14} color="#a1a1aa" />
+            <Ionicons name="globe-outline" size={12} color="#a1a1aa" />
             <Text className="text-xs text-zinc-400">Website</Text>
           </Pressable>
         )}
         <Pressable
           onPress={() => Linking.openURL(place.instagramUrl)}
-          className="flex-row items-center gap-1"
+          className="border border-zinc-700 rounded-full px-3 py-1.5 flex-row items-center gap-1"
         >
-          <FontAwesome5 name="instagram" size={14} color="#a1a1aa" />
+          <FontAwesome5 name="instagram" size={12} color="#a1a1aa" />
           <Text className="text-xs text-zinc-400">Instagram</Text>
         </Pressable>
       </View>

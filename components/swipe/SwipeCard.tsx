@@ -1,6 +1,6 @@
 import React from "react";
-import { View, Text, Pressable, Linking, useWindowDimensions } from "react-native";
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { View, Text, useWindowDimensions } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { GradientOverlay } from "@/components/ui/GradientOverlay";
@@ -21,12 +21,13 @@ interface SwipeCardProps {
   isTop: boolean;
   index: number; // 0 = top, 1 = second, 2 = third
   disabled?: boolean;
+  containerHeight: number;
 }
 
-export function SwipeCard({ place, onSwipe, isTop, index, disabled = false }: SwipeCardProps) {
-  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+export function SwipeCard({ place, onSwipe, isTop, index, disabled = false, containerHeight }: SwipeCardProps) {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const THRESHOLD = SCREEN_WIDTH * 0.35;
-  const CARD_HEIGHT = SCREEN_HEIGHT * 0.68;
+  const CARD_HEIGHT = containerHeight > 0 ? containerHeight * 0.95 : SCREEN_WIDTH * 1.2;
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -123,14 +124,6 @@ export function SwipeCard({ place, onSwipe, isTop, index, disabled = false }: Sw
         )}
 
         <GradientOverlay />
-
-        {/* Instagram icon (top right) */}
-        <Pressable
-          onPress={() => Linking.openURL(place.instagramUrl)}
-          className="absolute top-4 right-4 w-11 h-11 rounded-full bg-black/50 items-center justify-center"
-        >
-          <FontAwesome5 name="instagram" size={20} color="#ffffff" />
-        </Pressable>
 
         {/* LIKE label */}
         <Animated.View
